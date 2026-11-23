@@ -1,0 +1,16 @@
+name: reusable-observability-manifest-lint
+on:
+  workflow_call:
+    inputs:
+      manifest-path: {required: false, default: observability.yaml, type: string}
+permissions:
+  contents: read
+jobs:
+  validate-observability-manifest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate schema, semantics, and metric names
+        uses: ardamoustafa1/obs-manifest-schema@v1
+        with:
+          path: ${{ inputs.manifest-path }}

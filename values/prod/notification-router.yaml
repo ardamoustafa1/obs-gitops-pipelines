@@ -1,0 +1,9 @@
+replicaCount: 3
+image: {repository: ghcr.io/acme/obs-notification-router, tag: 1.0.0, pullPolicy: IfNotPresent}
+existingSecret: obs-notification-router
+resources:
+  requests: {cpu: 500m, memory: 512Mi}
+  limits: {cpu: "2", memory: 2Gi}
+podDisruptionBudget: {enabled: true, minAvailable: 2}
+autoscaling: {enabled: true, minReplicas: 3, maxReplicas: 12, targetCPUUtilizationPercentage: 60}
+

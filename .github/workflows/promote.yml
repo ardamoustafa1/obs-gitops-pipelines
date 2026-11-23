@@ -1,0 +1,54 @@
+name: promote-environment
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        type: choice
+        options: [onboarding-controller, notification-router, developer-portal]
+        required: true
+      source-environment:
+        type: choice
+        options: [dev, staging]
+        required: true
+      target-environment:
+        type: choice
+        options: [staging, prod]
+        required: true
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  promote:
+    if: >-
+      (inputs.source-environment == 'dev' && inputs.target-environment == 'staging') ||
+      (inputs.source-environment == 'staging' && inputs.target-environment == 'prod')
+    environment: ${{ inputs.target-environment }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Copy the exact verified artifact version
+        env:
+          COMPONENT: ${{ inputs.component }}
+          SOURCE_ENV: ${{ inputs.source-environment }}
+          TARGET_ENV: ${{ inputs.target-environment }}
+        run: |
+          VERSION=$(docker run --rm --user "$(id -u):$(id -g)" -v "$PWD:/workdir" mikefarah/yq:4.45.4 \
+            '.spec.sources[0].targetRevision' "applications/${SOURCE_ENV}/${COMPONENT}.yaml")
+          export VERSION
+          docker run --rm --user "$(id -u):$(id -g)" -e VERSION -v "$PWD:/workdir" mikefarah/yq:4.45.4 \
+            -i '.spec.sources[0].targetRevision = strenv(VERSION)' "applications/${TARGET_ENV}/${COMPONENT}.yaml"
+          docker run --rm --user "$(id -u):$(id -g)" -e VERSION -v "$PWD:/workdir" mikefarah/yq:4.45.4 \
+            -i '.image.tag = strenv(VERSION)' "values/${TARGET_ENV}/${COMPONENT}.yaml"
+      - id: pull-request
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: promote/${{ inputs.component }}-${{ inputs.target-environment }}
+          delete-branch: true
+          commit-message: "promote(${{ inputs.target-environment }}): ${{ inputs.component }}"
+          title: "promote(${{ inputs.target-environment }}): ${{ inputs.component }}"
+          body: "Promotes the exact chart and image already verified in `${{ inputs.source-environment }}`; no rebuild occurs."
+          labels: promotion,environment/${{ inputs.target-environment }}
+      - name: Auto-merge staging after checks
+        if: inputs.target-environment == 'staging' && steps.pull-request.outputs.pull-request-operation == 'created'
+        env: {GH_TOKEN: '${{ github.token }}', PR_URL: '${{ steps.pull-request.outputs.pull-request-url }}'}
+        run: gh pr merge "$PR_URL" --auto --squash

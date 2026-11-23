@@ -1,0 +1,29 @@
+name: sync-production
+on:
+  workflow_dispatch:
+    inputs:
+      component:
+        type: choice
+        options: [onboarding-controller, notification-router, developer-portal]
+        required: true
+permissions: {contents: read}
+jobs:
+  sync:
+    environment: production
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Argo CD CLI
+        env: {VERSION: v3.5.3}
+        run: |
+          curl --fail --silent --show-error --location "https://github.com/argoproj/argo-cd/releases/download/${VERSION}/argocd-linux-amd64" --output /tmp/argocd-linux-amd64
+          curl --fail --silent --show-error --location "https://github.com/argoproj/argo-cd/releases/download/${VERSION}/cli_checksums.txt" --output /tmp/cli_checksums.txt
+          cd /tmp && grep ' argocd-linux-amd64$' cli_checksums.txt | sha256sum --check
+          install -m 0755 /tmp/argocd-linux-amd64 /usr/local/bin/argocd
+      - name: Sync and wait for healthy rollout
+        env:
+          ARGOCD_SERVER: ${{ secrets.ARGOCD_SERVER }}
+          ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}
+          APP: obs-${{ inputs.component }}-prod
+        run: |
+          argocd app sync "$APP" --grpc-web --prune --timeout 600
+          argocd app wait "$APP" --grpc-web --health --sync --timeout 900

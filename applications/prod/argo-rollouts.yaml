@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts-prod
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-2"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: observability
+  source:
+    repoURL: https://argoproj.github.io/argo-helm
+    chart: argo-rollouts
+    targetRevision: 2.43.2
+    helm:
+      releaseName: argo-rollouts
+      valuesObject:
+        controller: {replicas: 2}
+        dashboard: {enabled: true, readonly: true}
+  destination: {name: obs-prod, namespace: argo-rollouts}
+  syncPolicy:
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true]

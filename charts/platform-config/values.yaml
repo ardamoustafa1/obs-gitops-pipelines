@@ -1,0 +1,14 @@
+environment: dev
+vault:
+  server: https://vault.acme.com
+  kvPath: observability
+  authMountPath: kubernetes
+  rolePrefix: observability
+  caBundle: ""
+prometheus:
+  address: http://thanos-query.observability.svc.cluster.local:9090
+secrets:
+  - obs-onboarding-controller
+  - obs-notification-router
+  - obs-developer-portal
+

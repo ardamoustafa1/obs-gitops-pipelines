@@ -1,0 +1,27 @@
+replicaCount: 2
+api:
+  image: {repository: ghcr.io/acme/obs-developer-portal-api, tag: 1.0.0, pullPolicy: IfNotPresent}
+web:
+  image: {repository: ghcr.io/acme/obs-developer-portal-web, tag: 1.0.0, pullPolicy: IfNotPresent}
+existingSecret: obs-developer-portal
+resources:
+  requests: {cpu: 200m, memory: 512Mi}
+  limits: {cpu: "2", memory: 2Gi}
+rollout:
+  enabled: true
+  strategy: blueGreen
+  blueGreen:
+    activeService: obs-developer-portal-obs-developer-portal-web
+    previewService: obs-developer-portal-obs-developer-portal-web-preview
+    autoPromotionEnabled: true
+    scaleDownDelaySeconds: 600
+    prePromotionAnalysis:
+      templates: [{templateName: golden-signals-bluegreen, clusterScope: true}]
+      args:
+        - {name: service, value: obs-developer-portal-obs-developer-portal-web-preview}
+        - {name: namespace, value: observability-staging}
+        - {name: availabilityTarget, value: "0.995"}
+        - {name: latencyTargetSeconds, value: "0.750"}
+  rollbackWindow: {revisions: 3}
+podDisruptionBudget: {enabled: true, minAvailable: 1}
+

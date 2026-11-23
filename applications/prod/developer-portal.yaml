@@ -1,0 +1,24 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: obs-developer-portal-prod
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+  labels: {app.kubernetes.io/part-of: observability, environment: prod}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: observability
+  sources:
+    - repoURL: ghcr.io/acme/charts
+      chart: obs-developer-portal
+      targetRevision: 1.0.0
+      helm:
+        releaseName: obs-developer-portal
+        valueFiles: [$values/values/prod/developer-portal.yaml]
+    - repoURL: https://github.com/ardamoustafa1/obs-gitops-pipelines.git
+      targetRevision: main
+      ref: values
+  destination: {name: obs-prod, namespace: observability-prod}
+  syncPolicy:
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true]
+    retry: {limit: 5, backoff: {duration: 5s, factor: 2, maxDuration: 3m}}

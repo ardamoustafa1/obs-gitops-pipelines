@@ -1,0 +1,7 @@
+apiVersion: v2
+name: observability-platform-config
+description: Shared External Secrets and Argo Rollouts analysis policy
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+

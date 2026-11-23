@@ -1,0 +1,108 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: golden-signals-canary
+spec:
+  args:
+    - {name: service}
+    - {name: namespace}
+    - {name: availabilityTarget}
+    - {name: latencyTargetSeconds}
+  metrics:
+    - name: availability
+      interval: 1m
+      count: 5
+      failureLimit: 2
+      successCondition: len(result) == 1 && result[0] >= {{`{{args.availabilityTarget}}`}}
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:sli_availability:ratio_rate5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+    - name: error-budget-fast-burn
+      interval: 1m
+      count: 5
+      failureLimit: 2
+      successCondition: len(result) == 1 && result[0] < 14.4
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:slo_error_budget_burn_rate:5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+    - name: latency-p95
+      interval: 1m
+      count: 5
+      failureLimit: 2
+      successCondition: len(result) == 1 && result[0] <= {{`{{args.latencyTargetSeconds}}`}}
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:sli_latency_p95_seconds:5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+    - name: traffic-anomaly
+      interval: 1m
+      count: 5
+      failureLimit: 2
+      successCondition: len(result) == 1 && result[0] >= 0.5 && result[0] <= 2.0
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            (
+              service:golden_traffic:rps_rate5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+              /
+              clamp_min(avg_over_time(service:golden_traffic:rps_rate5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}[30m]), 0.01)
+            ) or on() vector(1)
+    - name: saturation
+      interval: 1m
+      count: 5
+      failureLimit: 2
+      successCondition: len(result) == 1 && result[0] < 0.85
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:golden_saturation:ratio_rate5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+---
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: golden-signals-bluegreen
+spec:
+  args:
+    - {name: service}
+    - {name: namespace}
+    - {name: availabilityTarget}
+    - {name: latencyTargetSeconds}
+  metrics:
+    - name: preview-availability
+      initialDelay: 2m
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: len(result) == 1 && result[0] >= {{`{{args.availabilityTarget}}`}}
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:sli_availability:ratio_rate5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+    - name: preview-latency-p95
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: len(result) == 1 && result[0] <= {{`{{args.latencyTargetSeconds}}`}}
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:sli_latency_p95_seconds:5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}
+    - name: preview-error-budget-burn
+      interval: 1m
+      count: 5
+      failureLimit: 1
+      successCondition: len(result) == 1 && result[0] < 6.0
+      provider:
+        prometheus:
+          address: {{ .Values.prometheus.address | quote }}
+          query: |
+            service:slo_error_budget_burn_rate:5m{service="{{`{{args.service}}`}}",namespace="{{`{{args.namespace}}`}}"}

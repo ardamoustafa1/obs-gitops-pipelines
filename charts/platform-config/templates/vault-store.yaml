@@ -1,0 +1,22 @@
+apiVersion: external-secrets.io/v1
+kind: ClusterSecretStore
+metadata:
+  name: observability-vault-{{ .Values.environment }}
+spec:
+  provider:
+    vault:
+      server: {{ .Values.vault.server | quote }}
+      path: {{ .Values.vault.kvPath | quote }}
+      version: v2
+      {{- with .Values.vault.caBundle }}
+      caBundle: {{ . | quote }}
+      {{- end }}
+      auth:
+        kubernetes:
+          mountPath: {{ .Values.vault.authMountPath | quote }}
+          role: {{ printf "%s-%s" .Values.vault.rolePrefix .Values.environment | quote }}
+          serviceAccountRef:
+            name: external-secrets
+            namespace: external-secrets
+            audiences: [vault]
+

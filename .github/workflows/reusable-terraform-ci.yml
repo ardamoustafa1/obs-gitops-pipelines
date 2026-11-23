@@ -1,0 +1,55 @@
+name: reusable-terraform-ci
+on:
+  workflow_call:
+    inputs:
+      terraform-version: {required: false, default: 1.16.2, type: string}
+      working-directory: {required: false, default: ., type: string}
+      workspace: {required: true, type: string}
+      apply: {required: false, default: false, type: boolean}
+      github-environment: {required: false, default: production-infrastructure, type: string}
+    secrets:
+      TF_CLOUD_TOKEN: {required: true}
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  validate-and-plan:
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: '${{ inputs.working-directory }}'}}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_WORKSPACE: ${{ inputs.workspace }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_CLOUD_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: {terraform_version: '${{ inputs.terraform-version }}'}
+      - uses: terraform-linters/setup-tflint@v4
+        with: {tflint_version: v0.64.0}
+      - run: terraform fmt -check -recursive
+      - run: terraform init
+      - run: terraform validate
+      - run: tflint --init && tflint --recursive
+      - run: terraform test
+      - run: terraform plan -lock-timeout=5m -no-color
+
+  apply:
+    if: inputs.apply
+    needs: validate-and-plan
+    environment: ${{ inputs.github-environment }}
+    concurrency: terraform-${{ inputs.workspace }}
+    runs-on: ubuntu-latest
+    defaults: {run: {working-directory: '${{ inputs.working-directory }}'}}
+    env:
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+      TF_WORKSPACE: ${{ inputs.workspace }}
+      TF_TOKEN_app_terraform_io: ${{ secrets.TF_CLOUD_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with: {terraform_version: '${{ inputs.terraform-version }}'}
+      - run: terraform init
+      - run: terraform plan -lock-timeout=5m -out=approved.tfplan
+      - run: terraform apply -lock-timeout=5m -auto-approve approved.tfplan

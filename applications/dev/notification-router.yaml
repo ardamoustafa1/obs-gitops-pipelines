@@ -1,0 +1,26 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: obs-notification-router-dev
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "0"}
+  labels: {app.kubernetes.io/part-of: observability, environment: dev}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: observability
+  sources:
+    - repoURL: ghcr.io/acme/charts
+      chart: obs-notification-router
+      targetRevision: 1.0.0
+      helm:
+        releaseName: obs-notification-router
+        valueFiles: [$values/values/dev/notification-router.yaml]
+    - repoURL: https://github.com/ardamoustafa1/obs-gitops-pipelines.git
+      targetRevision: main
+      ref: values
+  destination: {name: obs-dev, namespace: observability-dev}
+  syncPolicy:
+    automated: {enabled: true, prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true]
+    retry: {limit: 5, backoff: {duration: 5s, factor: 2, maxDuration: 3m}}
+

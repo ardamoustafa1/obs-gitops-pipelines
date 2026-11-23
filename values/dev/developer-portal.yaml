@@ -1,0 +1,32 @@
+replicaCount: 2
+# This repo ships two independently built images (Go API + Next.js web) --
+# see obs-developer-portal/docker-compose.yml. A prior version of this file
+# had a single "image:" key, which the chart cannot deploy with.
+api:
+  image: {repository: ghcr.io/acme/obs-developer-portal-api, tag: 1.0.0, pullPolicy: IfNotPresent}
+web:
+  image: {repository: ghcr.io/acme/obs-developer-portal-web, tag: 1.0.0, pullPolicy: IfNotPresent}
+existingSecret: obs-developer-portal
+resources:
+  requests: {cpu: 100m, memory: 256Mi}
+  limits: {cpu: "1", memory: 1Gi}
+rollout:
+  enabled: true
+  strategy: blueGreen
+  blueGreen:
+    # Must match the chart's fullname ({{ .Release.Name }}-obs-developer-portal),
+    # and releaseName here is "obs-developer-portal" (see applications/dev/developer-portal.yaml).
+    activeService: obs-developer-portal-obs-developer-portal-web
+    previewService: obs-developer-portal-obs-developer-portal-web-preview
+    autoPromotionEnabled: true
+    scaleDownDelaySeconds: 300
+    prePromotionAnalysis:
+      templates: [{templateName: golden-signals-bluegreen, clusterScope: true}]
+      args:
+        - {name: service, value: obs-developer-portal-obs-developer-portal-web-preview}
+        - {name: namespace, value: observability-dev}
+        - {name: availabilityTarget, value: "0.990"}
+        - {name: latencyTargetSeconds, value: "1.000"}
+  rollbackWindow: {revisions: 3}
+podDisruptionBudget: {enabled: true, minAvailable: 1}
+

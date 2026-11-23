@@ -1,0 +1,21 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: observability-platform-config-dev
+  namespace: argocd
+  annotations: {argocd.argoproj.io/sync-wave: "-1"}
+  finalizers: [resources-finalizer.argocd.argoproj.io]
+spec:
+  project: observability
+  source:
+    repoURL: https://github.com/ardamoustafa1/obs-gitops-pipelines.git
+    targetRevision: main
+    path: charts/platform-config
+    helm:
+      releaseName: observability-platform-config
+      parameters: [{name: environment, value: dev}]
+  destination: {name: obs-dev, namespace: observability-dev}
+  syncPolicy:
+    automated: {enabled: true, prune: true, selfHeal: true}
+    syncOptions: [CreateNamespace=true, ServerSideApply=true, PruneLast=true]
+
